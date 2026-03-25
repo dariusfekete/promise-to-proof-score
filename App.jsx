@@ -1,10 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { generateReport } from "./report.js";
 
-var VERTICALS = ["Pricing / CPQ / Revenue", "ITSM / Operations", "HR / HCM", "Supply chain / ERP", "Marketing / CX", "Security / Compliance", "Analytics / BI", "Other B2B SaaS"];
-var SIZES = ["< $10M ARR", "$10\u201325M ARR", "$25\u201350M ARR", "$50\u2013150M ARR", "> $150M ARR"];
+var VERTICALS = [
+  { id: "pricing", label: "Pricing / CPQ / Revenue", valuePromise: "margin improvement, price realization, discount governance", typicalOutcomes: "2-5% margin improvement, 30-50% reduction in discount leakage, faster quote turnaround", proofChallenge: "Margin changes tracked in customer ERP, not your platform. Attribution requires connecting pricing decisions to financial outcomes across systems you don't control.", renewalEvidence: "transaction-level margin data showing before/after your implementation" },
+  { id: "itsm", label: "ITSM / Operations", valuePromise: "reduced IT service costs, faster resolution, improved employee productivity", typicalOutcomes: "30-40% cost reduction per ticket, 50%+ self-service deflection, MTTR improvement", proofChallenge: "Customers measure IT efficiency through their own reporting. Your platform handles workflows but the cost and productivity data lives in finance and HR systems.", renewalEvidence: "cost per resolution trend, FTE hours redirected, SLA compliance improvement" },
+  { id: "hr", label: "HR / HCM", valuePromise: "reduced time-to-hire, improved retention, lower HR cost per employee", typicalOutcomes: "25-40% faster hiring, 10-20pp retention improvement, onboarding time cut by 50%+", proofChallenge: "HR attributes retention improvements to culture and management initiatives, not software. The value is real but shared credit makes attribution murky.", renewalEvidence: "hiring cost reduction with clear before/after, retention cohort data, onboarding completion rates" },
+  { id: "supply", label: "Supply chain / ERP", valuePromise: "improved forecast accuracy, reduced inventory costs, faster fulfillment", typicalOutcomes: "15-30% forecast improvement, 10-20% inventory cost reduction, 1-3 day cycle compression", proofChallenge: "Supply chain outcomes depend on market conditions, supplier behavior, and demand patterns. Isolating your platform's contribution from external factors is the core attribution challenge.", renewalEvidence: "inventory carrying cost trend, forecast accuracy metrics, fulfillment cycle data with seasonal normalization" },
+  { id: "marketing", label: "Marketing / CX", valuePromise: "increased conversion, improved customer engagement, reduced acquisition cost", typicalOutcomes: "15-30% conversion lift, 20-40% engagement improvement, 10-25% CAC reduction", proofChallenge: "Marketing outcomes are multi-touch and multi-channel. Your platform is one variable among many. Buyers struggle to attribute revenue lift to any single tool.", renewalEvidence: "controlled test results, attributed pipeline and revenue, engagement-to-conversion funnel data" },
+  { id: "security", label: "Security / Compliance", valuePromise: "reduced breach risk, lower compliance costs, faster audit cycles", typicalOutcomes: "40-60% compliance cost reduction, 70%+ faster audit prep, measurable risk score improvement", proofChallenge: "Security value is about what didn't happen. Proving the absence of breaches is harder than proving positive outcomes. Compliance savings are real but often invisible to CFOs.", renewalEvidence: "compliance cost per cycle trend, audit preparation time, incident rate with counterfactual baseline" },
+  { id: "analytics", label: "Analytics / BI", valuePromise: "faster decisions, reduced operational costs through data-driven insights", typicalOutcomes: "10-15% operational cost reduction, 50%+ faster reporting, measurable decision quality improvement", proofChallenge: "Analytics platforms enable better decisions but don't make them. The human layer between insight and action makes attribution extremely difficult.", renewalEvidence: "decisions traced to platform insights with financial outcomes, time-to-decision metrics, operational cost trends" },
+  { id: "other", label: "Other B2B SaaS", valuePromise: "operational efficiency, cost reduction, revenue enablement", typicalOutcomes: "varies by use case", proofChallenge: "The attribution challenge depends on how directly your product connects to measurable business outcomes versus being an enabling layer.", renewalEvidence: "depends on your specific value proposition" },
+];
+var SIZES = ["< $10M ARR", "$10-25M ARR", "$25-50M ARR", "$50-150M ARR", "> $150M ARR"];
+var NRR_RANGES = ["Below 90%", "90-100%", "100-105%", "105-110%", "110-115%", "115-120%", "Above 120%", "Not sure"];
 var ROLES = ["CEO / GM", "CRO / CCO", "VP / Head of CS", "VP Sales / Revenue", "Head of Value / PreSales", "PE operating partner", "Other"];
-
 var BREAKS = [
   { name: "Promise \u2192 Deliver", short: "Handoff" },
   { name: "Deliver \u2192 Operate", short: "Go-live" },
@@ -12,339 +21,126 @@ var BREAKS = [
   { name: "Measure \u2192 Prove", short: "Attribution" },
   { name: "Prove \u2192 Decide", short: "Feedback loop" },
 ];
-
 var QS = [
-  { b: 0, q: "When a deal closes, does the implementation team receive the specific business case that Sales built?", opts: [
-    { t: "Always \u2014 structured handoff with outcomes and KPIs", s: 10 },
-    { t: "Sometimes \u2014 informally, depends on the people", s: 5 },
-    { t: "Rarely \u2014 implementation scopes from scratch", s: 0 },
-  ]},
-  { b: 0, q: "How much of the original business case survives into the implementation scope?", opts: [
-    { t: "Most of it \u2014 implementation targets the promised outcomes", s: 10 },
-    { t: "Some \u2014 translated into technical requirements, financial context lost", s: 5 },
-    { t: "Very little \u2014 business case and implementation live in different worlds", s: 0 },
-  ]},
-  { b: 1, q: "After go-live, does the customer know which business outcomes to expect and by when?", opts: [
-    { t: "Yes \u2014 clear milestones tied to the original business case", s: 10 },
-    { t: "Partially \u2014 they know the product works, not the expected impact", s: 5 },
-    { t: "No \u2014 go-live is project completion, not value delivery start", s: 0 },
-  ]},
-  { b: 1, q: "Is there a structured handoff from Implementation to CS that includes outcome targets?", opts: [
-    { t: "Yes \u2014 documented and standardized for every account", s: 10 },
-    { t: "Informal \u2014 happens inconsistently", s: 5 },
-    { t: "No \u2014 CS starts fresh", s: 0 },
-  ]},
-  { b: 2, q: "What does your CS team primarily track post-sale?", opts: [
-    { t: "Business outcomes tied to the original promise", s: 10 },
-    { t: "Product adoption and health scores (logins, usage, NPS)", s: 5 },
-    { t: "Mainly reactive \u2014 tickets, escalations, sentiment", s: 0 },
-  ]},
-  { b: 2, q: "Could your CSMs describe the specific business outcome each customer was promised \u2014 without looking it up?", opts: [
-    { t: "Yes, for most accounts", s: 10 },
-    { t: "Top accounts only", s: 5 },
-    { t: "Unlikely \u2014 focus is on product health", s: 0 },
-  ]},
-  { b: 3, q: "At renewal, what evidence does your team bring?", opts: [
-    { t: "Quantified business outcomes attributed to your product", s: 10 },
-    { t: "Adoption data, health scores, and a value narrative", s: 5 },
-    { t: "Relationship strength and a pricing discussion", s: 0 },
-  ]},
-  { b: 3, q: "If a customer\u2019s CFO asked \u2018prove this software delivered what we were promised\u2019 \u2014 how fast could you respond?", opts: [
-    { t: "Hours \u2014 evidence is structured and available", s: 10 },
-    { t: "Days to weeks \u2014 assembled from multiple systems", s: 5 },
-    { t: "We probably couldn\u2019t produce it", s: 0 },
-  ]},
-  { b: 4, q: "Does outcome data from successful customers feed back into how Sales builds the next business case?", opts: [
-    { t: "Yes \u2014 verified outcomes calibrate future promises by segment", s: 10 },
-    { t: "Informally \u2014 Sales knows anecdotally what works", s: 5 },
-    { t: "No \u2014 Sales builds cases independently of post-sale data", s: 0 },
-  ]},
-  { b: 4, q: "Could your company quantify your product\u2019s financial impact across the customer base \u2014 in a way that holds up under diligence?", opts: [
-    { t: "Yes \u2014 structured, consistent, and auditable", s: 10 },
-    { t: "Partially \u2014 some customers, inconsistently", s: 5 },
-    { t: "No \u2014 narrative and anecdotal", s: 0 },
-  ]},
+  { b:0, q:"When a deal closes, does the implementation team receive the specific business case that Sales built?", opts:[{t:"Always \u2014 structured handoff with outcomes and KPIs",s:10},{t:"Sometimes \u2014 informally, depends on the people",s:5},{t:"Rarely \u2014 implementation scopes from scratch",s:0}]},
+  { b:0, q:"How much of the original business case survives into the implementation scope?", opts:[{t:"Most of it \u2014 implementation targets the promised outcomes",s:10},{t:"Some \u2014 translated into technical requirements, financial context lost",s:5},{t:"Very little \u2014 business case and implementation live in different worlds",s:0}]},
+  { b:1, q:"After go-live, does the customer know which business outcomes to expect and by when?", opts:[{t:"Yes \u2014 clear milestones tied to the original business case",s:10},{t:"Partially \u2014 they know the product works, not the expected impact",s:5},{t:"No \u2014 go-live is project completion, not value delivery start",s:0}]},
+  { b:1, q:"Is there a structured handoff from Implementation to CS that includes outcome targets?", opts:[{t:"Yes \u2014 documented and standardized for every account",s:10},{t:"Informal \u2014 happens inconsistently",s:5},{t:"No \u2014 CS starts fresh",s:0}]},
+  { b:2, q:"What does your CS team primarily track post-sale?", opts:[{t:"Business outcomes tied to the original promise",s:10},{t:"Product adoption and health scores (logins, usage, NPS)",s:5},{t:"Mainly reactive \u2014 tickets, escalations, sentiment",s:0}]},
+  { b:2, q:"Could your CSMs describe the specific business outcome each customer was promised \u2014 without looking it up?", opts:[{t:"Yes, for most accounts",s:10},{t:"Top accounts only",s:5},{t:"Unlikely \u2014 focus is on product health",s:0}]},
+  { b:3, q:"At renewal, what evidence does your team bring?", opts:[{t:"Quantified business outcomes attributed to your product",s:10},{t:"Adoption data, health scores, and a value narrative",s:5},{t:"Relationship strength and a pricing discussion",s:0}]},
+  { b:3, q:"If a customer\u2019s CFO asked \u2018prove this software delivered what we were promised\u2019 \u2014 how fast could you respond?", opts:[{t:"Hours \u2014 evidence is structured and available",s:10},{t:"Days to weeks \u2014 assembled from multiple systems",s:5},{t:"We probably couldn\u2019t produce it",s:0}]},
+  { b:4, q:"Does outcome data from successful customers feed back into how Sales builds the next business case?", opts:[{t:"Yes \u2014 verified outcomes calibrate future promises by segment",s:10},{t:"Informally \u2014 Sales knows anecdotally what works",s:5},{t:"No \u2014 Sales builds cases independently of post-sale data",s:0}]},
+  { b:4, q:"Could your company quantify your product\u2019s financial impact across the customer base \u2014 in a way that holds up under diligence?", opts:[{t:"Yes \u2014 structured, consistent, and auditable",s:10},{t:"Partially \u2014 some customers, inconsistently",s:5},{t:"No \u2014 narrative and anecdotal",s:0}]},
 ];
+var VERDICTS = [{min:80,level:"Strong",col:"#22C55E",bg:"#052E16"},{min:60,level:"Developing",col:"#3B82F6",bg:"#0C1B3A"},{min:35,level:"Exposed",col:"#F59E0B",bg:"#2D1B00"},{min:0,level:"Critical",col:"#EF4444",bg:"#2D0A0A"}];
+var NRR_BENCH = { pricing:{best:"118-125%",typical:"105-112%"}, itsm:{best:"112-120%",typical:"100-108%"}, hr:{best:"110-118%",typical:"98-106%"}, supply:{best:"115-122%",typical:"103-110%"}, marketing:{best:"108-115%",typical:"95-104%"}, security:{best:"115-125%",typical:"105-112%"}, analytics:{best:"110-118%",typical:"100-108%"}, other:{best:"112-120%",typical:"100-110%"} };
+var GAPREC = ["The business case dies at signature. Implementation starts without knowing what was promised.","Go-live = project done, not value start. Customers don\u2019t know what outcomes to expect.","Your team measures activity, not outcomes. Can\u2019t answer whether the promise was delivered.","Outcomes may exist but can\u2019t be attributed. Renewals become price conversations.","Proven outcomes don\u2019t feed back to Sales. Every deal starts from scratch."];
 
-var VERDICTS = [
-  { min: 80, level: "Strong", col: "#22C55E", bg: "#052E16" },
-  { min: 60, level: "Developing", col: "#3B82F6", bg: "#0C1B3A" },
-  { min: 35, level: "Exposed", col: "#F59E0B", bg: "#2D1B00" },
-  { min: 0, level: "Critical", col: "#EF4444", bg: "#2D0A0A" },
-];
+var S = "@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400&display=swap');*{box-sizing:border-box;margin:0;padding:0}:root{--bg:#0A0A0C;--bg2:#111114;--bg3:#18181C;--fg:#E8E6E1;--fg2:#9A9890;--fg3:#5C5B56;--accent:#6366F1;--accent2:#818CF8;--border:rgba(255,255,255,0.06);--sans:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace}html{scroll-behavior:smooth}body{font-family:var(--sans);background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased}.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:40px 20px}.hero-pill{font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;padding:5px 14px;border-radius:100px;background:rgba(99,102,241,0.12);color:var(--accent2);margin-bottom:20px;display:inline-block}.hero h1{font-size:clamp(28px,5vw,44px);font-weight:600;letter-spacing:-0.03em;line-height:1.15;max-width:640px;margin-bottom:16px}.hero h1 em{font-style:normal;color:var(--accent2)}.hero p{font-size:15px;color:var(--fg2);line-height:1.7;max-width:520px;margin-bottom:28px}.hero-btn{padding:14px 36px;border-radius:10px;font-size:15px;font-weight:500;font-family:var(--sans);border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.2s}.hero-btn:hover{background:#5558E6;transform:translateY(-1px)}.hero-sub{font-size:12px;color:var(--fg3);margin-top:12px}.stats{display:flex;gap:40px;margin-bottom:32px;flex-wrap:wrap;justify-content:center}.stat-num{font-size:28px;font-weight:600;font-family:var(--mono);color:var(--accent2)}.stat-label{font-size:11px;color:var(--fg3);margin-top:2px}.wrap{max-width:560px;margin:0 auto;padding:40px 20px 60px}.pill{display:inline-block;font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;padding:4px 12px;border-radius:100px;background:rgba(99,102,241,0.12);color:var(--accent2)}h2.section{font-size:26px;font-weight:600;letter-spacing:-0.02em;margin:16px 0 8px}.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chip{padding:7px 14px;border-radius:8px;font-size:13px;font-family:var(--sans);background:var(--bg3);color:var(--fg2);border:1px solid var(--border);cursor:pointer;transition:all 0.15s}.chip:hover{border-color:rgba(255,255,255,0.12);color:var(--fg)}.chip.on{background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.4);color:var(--accent2)}.label{font-size:12px;color:var(--fg3);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;margin-top:20px}.btn-main{width:100%;padding:13px 0;border-radius:10px;font-size:15px;font-weight:500;font-family:var(--sans);border:none;cursor:pointer;background:var(--accent);color:#fff;margin-top:28px;transition:all 0.2s}.btn-main:hover{background:#5558E6}.btn-main:disabled{background:var(--bg3);color:var(--fg3);cursor:not-allowed}.progress-wrap{display:flex;align-items:center;gap:12px;margin-bottom:24px}.progress-bar{flex:1;height:2px;background:var(--bg3);border-radius:1px;overflow:hidden}.progress-fill{height:2px;background:var(--accent);border-radius:1px;transition:width 0.4s ease}.progress-text{font-size:12px;color:var(--fg3);font-family:var(--mono);min-width:44px;text-align:right}.q-break{font-size:11px;color:var(--fg3);letter-spacing:0.06em;margin-bottom:12px}.q-text{font-size:17px;font-weight:500;line-height:1.5;margin-bottom:20px}.opt{width:100%;text-align:left;padding:14px 18px;border-radius:10px;font-size:13px;line-height:1.5;font-family:var(--sans);background:var(--bg2);border:1px solid var(--border);color:var(--fg2);cursor:pointer;transition:all 0.15s;margin-bottom:8px;display:block}.opt:hover{border-color:rgba(255,255,255,0.12);color:var(--fg);background:var(--bg3)}.opt.sel{border-color:rgba(99,102,241,0.5);background:rgba(99,102,241,0.08);color:var(--fg)}.back{font-size:12px;color:var(--fg3);background:none;border:none;cursor:pointer;font-family:var(--sans);margin-top:8px;padding:0}.back:hover{color:var(--fg2)}.gate-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:32px 28px;text-align:center}.gate-box h3{font-size:22px;font-weight:600;margin-bottom:6px}.gate-input{width:100%;padding:12px 16px;border-radius:8px;font-size:14px;font-family:var(--sans);background:var(--bg);border:1px solid var(--border);color:var(--fg);margin-top:14px;outline:none;transition:border-color 0.2s}.gate-input:focus{border-color:rgba(99,102,241,0.5)}.gate-input::placeholder{color:var(--fg3)}.consent{font-size:11px;color:var(--fg3);line-height:1.5;margin-top:10px}.score-num{font-size:72px;font-weight:300;letter-spacing:-0.04em;line-height:1;font-family:var(--mono)}.chain{display:flex;align-items:center;justify-content:center;gap:0;margin:20px 0;flex-wrap:wrap}.chain-node{padding:5px 9px;border-radius:6px;font-size:10px;font-weight:500;background:var(--bg3);border:1px solid var(--border);color:var(--fg2);white-space:nowrap}.chain-link{width:18px;height:2px;border-radius:1px;position:relative}.chain-x{position:absolute;top:-7px;left:6px;font-size:11px;font-weight:600;line-height:1}.bar-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}.bar-name{color:var(--fg2)}.bar-val{color:var(--fg);font-family:var(--mono);font-weight:500}.bar-track{height:4px;border-radius:2px;background:var(--bg3);margin-bottom:12px}.bar-fill{height:4px;border-radius:2px;transition:width 0.8s cubic-bezier(0.25,1,0.5,1)}.rbox{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin:12px 0}.rbox.green{background:rgba(34,197,94,0.04);border-color:rgba(34,197,94,0.15)}.rbox.red{background:rgba(239,68,68,0.04);border-color:rgba(239,68,68,0.12)}.rbox.amber{background:rgba(245,158,11,0.04);border-color:rgba(245,158,11,0.12)}.rbox.purple{background:rgba(99,102,241,0.04);border-color:rgba(99,102,241,0.12)}.rbox-label{font-size:10px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:5px}.rbox-text{font-size:12px;color:var(--fg2);line-height:1.65}.rbox-text strong{color:var(--fg);font-weight:500}.cta-box{text-align:center;margin:20px 0 12px;padding:18px;border-radius:10px;border:1px solid var(--border)}.btn-ghost{width:100%;padding:10px 0;font-size:13px;font-family:var(--sans);background:none;border:1px solid var(--border);border-radius:8px;color:var(--fg3);cursor:pointer}.btn-ghost:hover{border-color:rgba(255,255,255,0.12);color:var(--fg2)}.btn-dl{width:100%;padding:13px 0;border-radius:10px;font-size:14px;font-weight:500;font-family:var(--sans);border:1px solid rgba(34,197,94,0.3);cursor:pointer;background:rgba(34,197,94,0.08);color:#22C55E;margin-bottom:8px;transition:all 0.2s}.btn-dl:hover{background:rgba(34,197,94,0.14)}.llm-box{text-align:center;padding:20px;color:var(--fg3);font-size:13px}.dot{display:inline-block;animation:pulse 1.4s ease infinite;width:6px;height:6px;border-radius:50%;background:var(--accent);margin:0 3px}.dot:nth-child(2){animation-delay:0.2s}.dot:nth-child(3){animation-delay:0.4s}@keyframes pulse{0%,80%,100%{opacity:0.2;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}.fade{animation:fadeIn 0.4s ease}@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}.score-reveal{animation:scoreIn 0.8s cubic-bezier(0.25,1,0.5,1)}@keyframes scoreIn{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}footer{text-align:center;padding:40px 20px;font-size:11px;color:var(--fg3);border-top:1px solid var(--border)}footer a{color:var(--accent2);text-decoration:none}";
 
-var VERDICT_TEXT = {
-  Strong: "Your promise-to-proof chain is largely intact. Focus on systematizing.",
-  Developing: "Gaps exist. You\u2019re likely leaving 5\u201310 NRR points on the table.",
-  Exposed: "Your team creates real value but can\u2019t prove it. Renewals default to price.",
-  Critical: "The chain is largely disconnected. NRR is 10\u201315 points below potential.",
-};
+function Chain({scores}){var stages=["Promise","Deliver","Operate","Measure","Prove","Decide"];return(<div className="chain">{stages.map(function(s,i){var bs=i>0&&i<6?scores[i-1]:null;var str=bs!==null?(bs>=15?"strong":bs>=8?"weak":"broken"):null;var lc=str==="strong"?"#22C55E":str==="weak"?"#F59E0B":str==="broken"?"#EF4444":"transparent";return(<div key={i} style={{display:"flex",alignItems:"center"}}>{i>0&&<div className="chain-link" style={{background:lc}}>{str==="broken"&&<span className="chain-x" style={{color:"#EF4444"}}>{"\u00d7"}</span>}</div>}<div className="chain-node" style={i===0?{background:"rgba(99,102,241,0.15)",borderColor:"rgba(99,102,241,0.3)",color:"#A5B4FC"}:{}}>{s}</div></div>);})}</div>);}
+function BarChart({scores}){var cols=["#6366F1","#22D3EE","#A78BFA","#F59E0B","#34D399"];return(<div style={{margin:"20px 0"}}>{BREAKS.map(function(b,i){return(<div key={i}><div className="bar-label"><span className="bar-name">{b.name}</span><span className="bar-val">{scores[i]}/20</span></div><div className="bar-track"><div className="bar-fill" style={{width:(scores[i]/20)*100+"%",background:cols[i]}}/></div></div>);})}</div>);}
 
-var BENCH = {
-  "> $150M ARR": { typical: "40\u201355", best: "80+" },
-  "$50\u2013150M ARR": { typical: "35\u201350", best: "75+" },
-  "$25\u201350M ARR": { typical: "25\u201340", best: "70+" },
-  "$10\u201325M ARR": { typical: "20\u201335", best: "65+" },
-  "< $10M ARR": { typical: "15\u201330", best: "60+" },
-};
-
-var GAPREC_SHORT = [
-  "The business case dies at signature. Implementation starts without knowing what was promised.",
-  "Go-live = project done, not value start. Customers don\u2019t know what outcomes to expect.",
-  "Your team measures activity, not outcomes. Can\u2019t answer whether the promise was delivered.",
-  "Outcomes may exist but can\u2019t be attributed. Renewals become price conversations.",
-  "Proven outcomes don\u2019t feed back to Sales. Every deal starts from scratch.",
-];
-
-var S = "\n@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400&display=swap');\n*{box-sizing:border-box;margin:0;padding:0}\n:root{--bg:#0A0A0C;--bg2:#111114;--bg3:#18181C;--fg:#E8E6E1;--fg2:#9A9890;--fg3:#5C5B56;--accent:#6366F1;--accent2:#818CF8;--border:rgba(255,255,255,0.06);--sans:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace}\nhtml{scroll-behavior:smooth}\nbody{font-family:var(--sans);background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased}\n\n.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:40px 20px}\n.hero-pill{font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;padding:5px 14px;border-radius:100px;background:rgba(99,102,241,0.12);color:var(--accent2);margin-bottom:20px;display:inline-block}\n.hero h1{font-size:clamp(32px,5vw,48px);font-weight:600;letter-spacing:-0.03em;line-height:1.15;max-width:680px;margin-bottom:16px}\n.hero h1 em{font-style:normal;color:var(--accent2)}\n.hero p{font-size:16px;color:var(--fg2);line-height:1.7;max-width:520px;margin-bottom:28px}\n.hero-btn{padding:14px 36px;border-radius:10px;font-size:15px;font-weight:500;font-family:var(--sans);border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.2s}\n.hero-btn:hover{background:#5558E6;transform:translateY(-1px)}\n.hero-sub{font-size:12px;color:var(--fg3);margin-top:12px}\n\n.stats{display:flex;gap:40px;margin-bottom:32px;flex-wrap:wrap;justify-content:center}\n.stat-num{font-size:28px;font-weight:600;font-family:var(--mono);color:var(--accent2)}\n.stat-label{font-size:11px;color:var(--fg3);margin-top:2px;letter-spacing:0.03em}\n\n.wrap{max-width:560px;margin:0 auto;padding:40px 20px 60px}\n.pill{display:inline-block;font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;padding:4px 12px;border-radius:100px;background:rgba(99,102,241,0.12);color:var(--accent2)}\nh2.section{font-size:28px;font-weight:600;letter-spacing:-0.02em;margin:16px 0 8px}\n\n.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}\n.chip{padding:7px 14px;border-radius:8px;font-size:13px;font-family:var(--sans);background:var(--bg3);color:var(--fg2);border:1px solid var(--border);cursor:pointer;transition:all 0.15s}\n.chip:hover{border-color:rgba(255,255,255,0.12);color:var(--fg)}\n.chip.on{background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.4);color:var(--accent2)}\n.label{font-size:12px;color:var(--fg3);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;margin-top:20px}\n\n.btn-main{width:100%;padding:13px 0;border-radius:10px;font-size:15px;font-weight:500;font-family:var(--sans);border:none;cursor:pointer;background:var(--accent);color:#fff;margin-top:28px;transition:all 0.2s}\n.btn-main:hover{background:#5558E6}\n.btn-main:disabled{background:var(--bg3);color:var(--fg3);cursor:not-allowed}\n\n.progress-wrap{display:flex;align-items:center;gap:12px;margin-bottom:24px}\n.progress-bar{flex:1;height:2px;background:var(--bg3);border-radius:1px;overflow:hidden}\n.progress-fill{height:2px;background:var(--accent);border-radius:1px;transition:width 0.4s ease}\n.progress-text{font-size:12px;color:var(--fg3);font-family:var(--mono);min-width:44px;text-align:right}\n\n.q-break{font-size:11px;color:var(--fg3);letter-spacing:0.06em;margin-bottom:12px}\n.q-text{font-size:18px;font-weight:500;line-height:1.5;margin-bottom:20px;letter-spacing:-0.01em}\n\n.opt{width:100%;text-align:left;padding:14px 18px;border-radius:10px;font-size:14px;line-height:1.5;font-family:var(--sans);background:var(--bg2);border:1px solid var(--border);color:var(--fg2);cursor:pointer;transition:all 0.15s;margin-bottom:8px;display:block}\n.opt:hover{border-color:rgba(255,255,255,0.12);color:var(--fg);background:var(--bg3)}\n.opt.sel{border-color:rgba(99,102,241,0.5);background:rgba(99,102,241,0.08);color:var(--fg)}\n.back{font-size:12px;color:var(--fg3);background:none;border:none;cursor:pointer;font-family:var(--sans);margin-top:8px;padding:0}\n.back:hover{color:var(--fg2)}\n\n.gate-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:32px 28px;text-align:center}\n.gate-box h3{font-size:22px;font-weight:600;margin-bottom:6px}\n.gate-input{width:100%;padding:12px 16px;border-radius:8px;font-size:14px;font-family:var(--sans);background:var(--bg);border:1px solid var(--border);color:var(--fg);margin-top:16px;outline:none;transition:border-color 0.2s}\n.gate-input:focus{border-color:rgba(99,102,241,0.5)}\n.gate-input::placeholder{color:var(--fg3)}\n.consent{font-size:11px;color:var(--fg3);line-height:1.5;margin-top:10px}\n\n.score-num{font-size:80px;font-weight:300;letter-spacing:-0.04em;line-height:1;font-family:var(--mono)}\n.chain{display:flex;align-items:center;justify-content:center;gap:0;margin:24px 0;flex-wrap:wrap}\n.chain-node{padding:6px 10px;border-radius:6px;font-size:10px;font-weight:500;background:var(--bg3);border:1px solid var(--border);color:var(--fg2);white-space:nowrap}\n.chain-link{width:20px;height:2px;border-radius:1px;position:relative}\n.chain-x{position:absolute;top:-7px;left:7px;font-size:11px;font-weight:600;line-height:1}\n\n.bar-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}\n.bar-name{color:var(--fg2)}\n.bar-val{color:var(--fg);font-family:var(--mono);font-weight:500}\n.bar-track{height:4px;border-radius:2px;background:var(--bg3);margin-bottom:12px}\n.bar-fill{height:4px;border-radius:2px;transition:width 0.8s cubic-bezier(0.25,1,0.5,1)}\n\n.gap-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin:16px 0}\n.bench-box{background:var(--bg3);border-radius:10px;padding:14px 18px;margin:16px 0}\n\n.cta-box{text-align:center;margin:24px 0 12px;padding:20px;border-radius:10px;border:1px solid var(--border)}\n.btn-ghost{width:100%;padding:10px 0;font-size:13px;font-family:var(--sans);background:none;border:1px solid var(--border);border-radius:8px;color:var(--fg3);cursor:pointer;transition:all 0.15s}\n.btn-ghost:hover{border-color:rgba(255,255,255,0.12);color:var(--fg2)}\n.btn-dl{width:100%;padding:13px 0;border-radius:10px;font-size:14px;font-weight:500;font-family:var(--sans);border:1px solid rgba(34,197,94,0.3);cursor:pointer;background:rgba(34,197,94,0.08);color:#22C55E;margin-bottom:8px;transition:all 0.2s}\n.btn-dl:hover{background:rgba(34,197,94,0.14)}\n\n.fade{animation:fadeIn 0.4s ease}\n@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}\n.score-reveal{animation:scoreIn 0.8s cubic-bezier(0.25,1,0.5,1)}\n@keyframes scoreIn{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}\n\nfooter{text-align:center;padding:40px 20px;font-size:11px;color:var(--fg3);border-top:1px solid var(--border)}\nfooter a{color:var(--accent2);text-decoration:none}\n";
-
-function Chain({ scores }) {
-  var stages = ["Promise", "Deliver", "Operate", "Measure", "Prove", "Decide"];
-  return (
-    <div className="chain">
-      {stages.map(function(s, i) {
-        var bs = i > 0 && i < 6 ? scores[i - 1] : null;
-        var str = bs !== null ? (bs >= 15 ? "strong" : bs >= 8 ? "weak" : "broken") : null;
-        var lc = str === "strong" ? "#22C55E" : str === "weak" ? "#F59E0B" : str === "broken" ? "#EF4444" : "transparent";
-        return (
-          <div key={i} style={{ display: "flex", alignItems: "center" }}>
-            {i > 0 && (
-              <div className="chain-link" style={{ background: lc }}>
-                {str === "broken" && <span className="chain-x" style={{ color: "#EF4444" }}>\u00d7</span>}
-              </div>
-            )}
-            <div className="chain-node" style={i === 0 ? { background: "rgba(99,102,241,0.15)", borderColor: "rgba(99,102,241,0.3)", color: "#A5B4FC" } : {}}>{s}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
+async function getInsights(ctx){
+  try{
+    var r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:"You are a B2B SaaS commercial strategy expert with deep knowledge of how different SaaS verticals create, deliver, and prove value.\n\nContext: A "+ctx.role+" at a "+ctx.size+" "+ctx.vertLabel+" company completed a promise-to-proof diagnostic.\n\nScores (each /20): Promise\u2192Deliver: "+ctx.bs[0]+", Deliver\u2192Operate: "+ctx.bs[1]+", Operate\u2192Measure: "+ctx.bs[2]+", Measure\u2192Prove: "+ctx.bs[3]+", Prove\u2192Decide: "+ctx.bs[4]+". Total: "+ctx.total+"/100.\n\nNRR: "+ctx.nrr+". Best-in-class NRR for "+ctx.vertLabel+": "+ctx.bench.best+". Typical: "+ctx.bench.typical+".\n\nVertical context:\n- Value promise: "+ctx.vd.valuePromise+"\n- Typical outcomes: "+ctx.vd.typicalOutcomes+"\n- Proof challenge: "+ctx.vd.proofChallenge+"\n- Renewal evidence: "+ctx.vd.renewalEvidence+"\n\nRespond ONLY with valid JSON. No backticks. No preamble.\n{\"nrrGapAnalysis\":\"2-3 sentences: specific NRR gap for this vertical/size, estimated annual revenue impact, root cause from their scores\",\"verticalDiagnosis\":\"3-4 sentences: what scores mean for THIS type of SaaS company specifically. Reference the proof challenge. Be concrete about what value evidence looks like in "+ctx.vertLabel+".\",\"biggestBreakImpact\":\"2-3 sentences: weakest link ("+BREAKS[ctx.weak].name+") and its specific financial consequence for this business type\",\"threeActions\":[{\"title\":\"short title\",\"detail\":\"1-2 sentences. Specific to "+ctx.vertLabel+" and their weakest break. What to do this month.\"},{\"title\":\"short title\",\"detail\":\"1-2 sentences. What to build this quarter for "+ctx.vertLabel+".\"},{\"title\":\"short title\",\"detail\":\"1-2 sentences. Strategic 6-month view.\"}],\"roleSpecificInsight\":\"1-2 sentences for a "+ctx.role+" about what this means for their priorities.\"}"}]})});
+    var d=await r.json();var t=d.content.map(function(c){return c.text||"";}).join("");
+    return JSON.parse(t.replace(/```json|```/g,"").trim());
+  }catch(e){console.error("LLM:",e);return null;}
 }
 
-function BarChart({ scores }) {
-  var cols = ["#6366F1", "#22D3EE", "#A78BFA", "#F59E0B", "#34D399"];
-  return (
-    <div style={{ margin: "24px 0" }}>
-      {BREAKS.map(function(b, i) {
-        return (
-          <div key={i}>
-            <div className="bar-label"><span className="bar-name">{b.name}</span><span className="bar-val">{scores[i]}/20</span></div>
-            <div className="bar-track"><div className="bar-fill" style={{ width: (scores[i] / 20) * 100 + "%", background: cols[i] }} /></div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+export default function App(){
+  var _p=useState("hero"),phase=_p[0],setPhase=_p[1];
+  var _v=useState(""),vertId=_v[0],setVertId=_v[1];
+  var _s=useState(""),size=_s[0],setSize=_s[1];
+  var _n=useState(""),nrr=_n[0],setNrr=_n[1];
+  var _r=useState(""),role=_r[0],setRole=_r[1];
+  var _c=useState(0),cur=_c[0],setCur=_c[1];
+  var _a=useState({}),ans=_a[0],setAns=_a[1];
+  var _e=useState(""),email=_e[0],setEmail=_e[1];
+  var _nm=useState(""),name=_nm[0],setName=_nm[1];
+  var _co=useState(""),company=_co[0],setCompany=_co[1];
+  var _se=useState(false),sending=_se[0],setSending=_se[1];
+  var _in=useState(null),insights=_in[0],setInsights=_in[1];
+  var _il=useState(false),loading=_il[0],setLoading=_il[1];
+  var topRef=useRef(null);
+  var vert=VERTICALS.find(function(v){return v.id===vertId;});
 
-export default function App() {
-  var _a = useState("hero"), phase = _a[0], setPhase = _a[1];
-  var _b = useState(""), vert = _b[0], setVert = _b[1];
-  var _c = useState(""), size = _c[0], setSize = _c[1];
-  var _d = useState(""), role = _d[0], setRole = _d[1];
-  var _e = useState(0), cur = _e[0], setCur = _e[1];
-  var _f = useState({}), ans = _f[0], setAns = _f[1];
-  var _g = useState(""), email = _g[0], setEmail = _g[1];
-  var _h = useState(""), name = _h[0], setName = _h[1];
-  var _i = useState(""), company = _i[0], setCompany = _i[1];
-  var _j = useState(false), sending = _j[0], setSending = _j[1];
-  var topRef = useRef(null);
+  useEffect(function(){if(phase!=="hero"&&topRef.current)topRef.current.scrollIntoView({behavior:"smooth",block:"start"});},[phase,cur]);
 
-  useEffect(function() {
-    if (phase !== "hero" && topRef.current) topRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [phase, cur]);
+  var pick=function(qi,s){var next=Object.assign({},ans);next[qi]=s;setAns(next);
+    if(cur<QS.length-1)setTimeout(function(){setCur(cur+1);},200);
+    else setTimeout(function(){setPhase("gate");},400);};
 
-  var pick = function(qi, s) {
-    var next = Object.assign({}, ans);
-    next[qi] = s;
-    setAns(next);
-    if (cur < QS.length - 1) setTimeout(function() { setCur(cur + 1); }, 200);
-    else setTimeout(function() { setPhase("gate"); }, 400);
-  };
+  var total=Object.values(ans).reduce(function(a,b){return a+b;},0);
+  var bscores=BREAKS.map(function(_,bi){return QS.filter(function(q){return q.b===bi;}).reduce(function(sum,q){return sum+(ans[QS.indexOf(q)]||0);},0);});
+  var verdict=VERDICTS.find(function(v){return total>=v.min;});
+  var weakest=bscores.indexOf(Math.min.apply(null,bscores));
+  var nrrBench=NRR_BENCH[vertId]||NRR_BENCH["other"];
+  var validEmail=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  var total = Object.values(ans).reduce(function(a, b) { return a + b; }, 0);
-  var bscores = BREAKS.map(function(_, bi) {
-    return QS.filter(function(q) { return q.b === bi; }).reduce(function(sum, q) {
-      var qi = QS.indexOf(q);
-      return sum + (ans[qi] || 0);
-    }, 0);
-  });
-  var verdict = VERDICTS.find(function(v) { return total >= v.min; });
-  var weakest = bscores.indexOf(Math.min.apply(null, bscores));
-  var bench = BENCH[size] || BENCH["$25\u201350M ARR"];
-  var validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  var handleSubmitGate = async function() {
+  var handleGate=async function(){
     setSending(true);
-    try {
-      await fetch("/api/collect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name, email: email, company: company, vertical: vert, size: size, role: role,
-          score: total, breakScores: bscores, weakestBreak: weakest,
-          verdict: verdict.level, timestamp: new Date().toISOString(),
-        }),
-      });
-    } catch (e) {
-      console.log("Lead collection skipped:", e);
-    }
-    setSending(false);
-    setPhase("result");
+    try{await fetch("/api/collect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,email:email,company:company,vertical:vert?vert.label:"",size:size,role:role,nrr:nrr,score:total,breakScores:bscores,weakestBreak:weakest,verdict:verdict.level,timestamp:new Date().toISOString()})});}catch(e){}
+    setSending(false);setPhase("result");
+    setLoading(true);
+    var result=await getInsights({role:role,size:size,vertLabel:vert?vert.label:"B2B SaaS",vd:vert||VERTICALS[7],total:total,bs:bscores,nrr:nrr,bench:nrrBench,weak:weakest});
+    setInsights(result);setLoading(false);
   };
 
-  var handleDownload = function() {
-    var doc = generateReport({
-      name: name, email: email, vertical: vert, size: size, role: role,
-      totalScore: total, breakScores: bscores, weakestBreak: weakest,
-    });
-    doc.save("Promise-to-Proof-Score_" + name.replace(/\s+/g, "_") + ".pdf");
+  var handleDL=function(){
+    var doc=generateReport({name:name,email:email,vertical:vert?vert.label:"",size:size,role:role,nrr:nrr,totalScore:total,breakScores:bscores,weakestBreak:weakest,insights:insights,verticalData:vert||VERTICALS[7],nrrBench:nrrBench});
+    doc.save("Promise-to-Proof_"+name.replace(/\s+/g,"_")+".pdf");
   };
 
-  var resetAll = function() {
-    setPhase("hero"); setCur(0); setAns({}); setEmail(""); setName(""); setCompany(""); setVert(""); setSize(""); setRole("");
-  };
+  var reset=function(){setPhase("hero");setCur(0);setAns({});setEmail("");setName("");setCompany("");setVertId("");setSize("");setRole("");setNrr("");setInsights(null);};
 
-  // HERO
-  if (phase === "hero") {
-    return (
-      <>
-        <style>{S}</style>
-        <div className="hero">
-          <span className="hero-pill">Free diagnostic for B2B SaaS</span>
-          <h1>How much NRR are you leaving on the table because you can{"'"}t prove <em>outcomes</em>?</h1>
-          <p>Most B2B SaaS companies track adoption well. Almost none connect it back to the business case that closed the deal. That gap costs 10{"\u2013"}15 NRR points. Find out where your chain breaks.</p>
-          <div className="stats">
-            <div><div className="stat-num">10</div><div className="stat-label">questions</div></div>
-            <div><div className="stat-num">2</div><div className="stat-label">minutes</div></div>
-            <div><div className="stat-num">5</div><div className="stat-label">chain links scored</div></div>
-          </div>
-          <button className="hero-btn" onClick={function() { setPhase("context"); }}>Take the assessment</button>
-          <div className="hero-sub">Free. No credit card. Get a downloadable report.</div>
-        </div>
-        <footer>Built by <a href="mailto:darius.fekete@gmail.com">Darius Fekete</a> {"\u00b7"} 18 years building commercial systems inside PE-backed B2B companies</footer>
-      </>
-    );
-  }
+  if(phase==="hero")return(<><style>{S}</style><div className="hero"><span className="hero-pill">Free diagnostic for B2B SaaS</span><h1>How much NRR are you leaving on the table because you can{"'"}t prove <em>outcomes</em>?</h1><p>Get a personalized diagnosis for your SaaS vertical {"\u2014"} specific to how your product creates value, where proof breaks down, and what to do next.</p><div className="stats"><div><div className="stat-num">10</div><div className="stat-label">questions</div></div><div><div className="stat-num">2</div><div className="stat-label">minutes</div></div><div><div className="stat-num">5</div><div className="stat-label">chain links scored</div></div></div><button className="hero-btn" onClick={function(){setPhase("context");}}>Take the assessment</button><div className="hero-sub">Free. Personalized for your vertical. Downloadable PDF report.</div></div><footer>Built by <a href="mailto:darius.fekete@gmail.com">Darius Fekete</a> {"\u00b7"} 18 years building commercial systems inside PE-backed B2B companies</footer></>);
 
-  // CONTEXT
-  if (phase === "context") {
-    return (
-      <>
-        <style>{S}</style>
-        <div className="wrap fade" ref={topRef}>
-          <div className="pill">Step 1 of 3</div>
-          <h2 className="section">About your company</h2>
-          <p style={{ fontSize: 14, color: "var(--fg2)", lineHeight: 1.6 }}>This helps us benchmark your score against peers.</p>
-          <div className="label">SaaS vertical</div>
-          <div className="chips">{VERTICALS.map(function(v) { return <button key={v} className={"chip" + (vert === v ? " on" : "")} onClick={function() { setVert(v); }}>{v}</button>; })}</div>
-          <div className="label">Company size</div>
-          <div className="chips">{SIZES.map(function(s) { return <button key={s} className={"chip" + (size === s ? " on" : "")} onClick={function() { setSize(s); }}>{s}</button>; })}</div>
-          <div className="label">Your role</div>
-          <div className="chips">{ROLES.map(function(r) { return <button key={r} className={"chip" + (role === r ? " on" : "")} onClick={function() { setRole(r); }}>{r}</button>; })}</div>
-          <button className="btn-main" disabled={!vert || !size || !role} onClick={function() { setPhase("questions"); }}>Start assessment {"\u2192"}</button>
-        </div>
-      </>
-    );
-  }
+  if(phase==="context")return(<><style>{S}</style><div className="wrap fade" ref={topRef}><div className="pill">Step 1 of 3</div><h2 className="section">About your company</h2><p style={{fontSize:13,color:"var(--fg2)",lineHeight:1.6}}>Different SaaS verticals have fundamentally different value chains. This shapes your diagnosis.</p>
+    <div className="label">What does your product do?</div><div className="chips">{VERTICALS.map(function(v){return <button key={v.id} className={"chip"+(vertId===v.id?" on":"")} onClick={function(){setVertId(v.id);}}>{v.label}</button>;})}</div>
+    {vert&&<div style={{fontSize:12,color:"var(--fg3)",marginTop:8,lineHeight:1.5,padding:"8px 12px",background:"var(--bg2)",borderRadius:8,border:"1px solid var(--border)"}}><strong style={{color:"var(--fg2)"}}>Value promise:</strong> {vert.valuePromise}</div>}
+    <div className="label">Company size</div><div className="chips">{SIZES.map(function(s){return <button key={s} className={"chip"+(size===s?" on":"")} onClick={function(){setSize(s);}}>{s}</button>;})}</div>
+    <div className="label">Current NRR (approximate)</div><div className="chips">{NRR_RANGES.map(function(n){return <button key={n} className={"chip"+(nrr===n?" on":"")} onClick={function(){setNrr(n);}}>{n}</button>;})}</div>
+    <div className="label">Your role</div><div className="chips">{ROLES.map(function(r){return <button key={r} className={"chip"+(role===r?" on":"")} onClick={function(){setRole(r);}}>{r}</button>;})}</div>
+    <button className="btn-main" disabled={!vertId||!size||!role||!nrr} onClick={function(){setPhase("questions");}}>Start assessment {"\u2192"}</button></div></>);
 
-  // QUESTIONS
-  if (phase === "questions") {
-    var q = QS[cur];
-    return (
-      <>
-        <style>{S}</style>
-        <div className="wrap fade" ref={topRef}>
-          <div className="progress-wrap">
-            <div className="progress-bar"><div className="progress-fill" style={{ width: ((cur + 1) / QS.length) * 100 + "%" }} /></div>
-            <div className="progress-text">{cur + 1}/{QS.length}</div>
-          </div>
-          <div className="q-break">{BREAKS[q.b].name}</div>
-          <div className="q-text">{q.q}</div>
-          {q.opts.map(function(o, oi) {
-            return <button key={oi} className={"opt" + (ans[cur] === o.s ? " sel" : "")} onClick={function() { pick(cur, o.s); }}>{o.t}</button>;
-          })}
-          {cur > 0 && <button className="back" onClick={function() { setCur(cur - 1); }}>{"\u2190"} Back</button>}
-        </div>
-      </>
-    );
-  }
+  if(phase==="questions"){var q=QS[cur];return(<><style>{S}</style><div className="wrap fade" ref={topRef}><div className="progress-wrap"><div className="progress-bar"><div className="progress-fill" style={{width:((cur+1)/QS.length)*100+"%"}}/></div><div className="progress-text">{cur+1}/{QS.length}</div></div><div className="q-break">{BREAKS[q.b].name}</div><div className="q-text">{q.q}</div>{q.opts.map(function(o,oi){return <button key={oi} className={"opt"+(ans[cur]===o.s?" sel":"")} onClick={function(){pick(cur,o.s);}}>{o.t}</button>;})}{cur>0&&<button className="back" onClick={function(){setCur(cur-1);}}>{"\u2190"} Back</button>}</div></>);}
 
-  // EMAIL GATE
-  if (phase === "gate") {
-    return (
-      <>
-        <style>{S}</style>
-        <div className="wrap fade" ref={topRef}>
-          <div className="gate-box">
-            <div className="pill" style={{ marginBottom: 12 }}>Your results are ready</div>
-            <h3>Get your full report</h3>
-            <p style={{ fontSize: 13, color: "var(--fg2)", marginTop: 6, lineHeight: 1.6 }}>Score, breakdown by chain link, biggest gap, benchmarks, and recommendations.</p>
-            <input className="gate-input" type="text" placeholder="Your name" value={name} onChange={function(e) { setName(e.target.value); }} />
-            <input className="gate-input" type="email" placeholder="Work email" value={email} onChange={function(e) { setEmail(e.target.value); }} />
-            <input className="gate-input" type="text" placeholder="Company (optional)" value={company} onChange={function(e) { setCompany(e.target.value); }} />
-            <button className="btn-main" disabled={!validEmail || !name.trim() || sending} onClick={handleSubmitGate}>
-              {sending ? "Preparing..." : "View results & download report"}
-            </button>
-            <p className="consent">Your data stays private. No spam. Just your diagnostic report.</p>
-          </div>
-        </div>
-      </>
-    );
-  }
+  if(phase==="gate")return(<><style>{S}</style><div className="wrap fade" ref={topRef}><div className="gate-box"><div className="pill" style={{marginBottom:12}}>Your results are ready</div><h3>Get your personalized report</h3><p style={{fontSize:13,color:"var(--fg2)",marginTop:6,lineHeight:1.6}}>Includes {vert?vert.label:""}-specific diagnosis, NRR gap analysis, and prioritized actions.</p><input className="gate-input" type="text" placeholder="Your name" value={name} onChange={function(e){setName(e.target.value);}}/><input className="gate-input" type="email" placeholder="Work email" value={email} onChange={function(e){setEmail(e.target.value);}}/><input className="gate-input" type="text" placeholder="Company (optional)" value={company} onChange={function(e){setCompany(e.target.value);}}/><button className="btn-main" disabled={!validEmail||!name.trim()||sending} onClick={handleGate}>{sending?"Preparing...":"View results & get report"}</button><p className="consent">Your data stays private. No spam.</p></div></div></>);
 
   // RESULTS
-  return (
-    <>
-      <style>{S}</style>
-      <div className="wrap" ref={topRef}>
-        <div style={{ textAlign: "center", marginBottom: 8 }} className="score-reveal">
-          <div className="pill" style={{ marginBottom: 16 }}>Your promise-to-proof score</div>
-          <div className="score-num" style={{ color: verdict.col }}>{total}</div>
-          <div style={{ fontSize: 14, color: "var(--fg3)", marginTop: 4 }}>out of 100</div>
-        </div>
+  return(<><style>{S}</style><div className="wrap" ref={topRef}>
+    <div style={{textAlign:"center",marginBottom:8}} className="score-reveal"><div className="pill" style={{marginBottom:16}}>Your promise-to-proof score</div><div className="score-num" style={{color:verdict.col}}>{total}</div><div style={{fontSize:14,color:"var(--fg3)",marginTop:4}}>out of 100</div></div>
+    <div className="fade" style={{padding:"14px 18px",borderRadius:10,background:verdict.bg,borderLeft:"3px solid "+verdict.col,margin:"16px 0"}}><div style={{fontSize:13,fontWeight:600,color:verdict.col,marginBottom:4}}>{verdict.level}</div><div style={{fontSize:12,color:"var(--fg2)",lineHeight:1.7}}>{total>=80?"Your chain is largely intact. Focus on systematizing.":total>=60?"Gaps exist. You\u2019re likely leaving 5\u201310 NRR points on the table.":total>=35?"Significant breaks. Your team creates value but can\u2019t prove it.":"The chain is largely disconnected. NRR is well below potential."}</div></div>
 
-        <div className="fade" style={{ padding: "16px 20px", borderRadius: 10, background: verdict.bg, borderLeft: "3px solid " + verdict.col, margin: "20px 0" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: verdict.col, marginBottom: 4 }}>{verdict.level}</div>
-          <div style={{ fontSize: 13, color: "var(--fg2)", lineHeight: 1.7 }}>{VERDICT_TEXT[verdict.level]}</div>
-        </div>
+    {/* NRR gap */}
+    <div className={"rbox "+(nrr==="Above 120%"?"green":nrr==="Not sure"?"":"110-115%|115-120%".includes(nrr)?"amber":"red")}><div className="rbox-label" style={{color:nrr==="Above 120%"?"#22C55E":"#F59E0B"}}>NRR benchmark: {vert?vert.label.toLowerCase():"your vertical"}</div><div className="rbox-text"><strong>Your NRR: {nrr}</strong>. Best-in-class for {vert?vert.label.toLowerCase():"your space"}: <strong>{nrrBench.best}</strong>. Typical: {nrrBench.typical}.</div></div>
 
-        <Chain scores={bscores} />
+    <Chain scores={bscores}/>
+    <div className="fade"><div style={{fontSize:13,fontWeight:500,color:"var(--fg2)",marginBottom:6}}>Score by chain link</div><BarChart scores={bscores}/></div>
 
-        <div className="fade">
-          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--fg2)", marginBottom: 8 }}>Score by chain link</div>
-          <BarChart scores={bscores} />
-        </div>
+    {/* Vertical proof challenge */}
+    {vert&&vert.id!=="other"&&<div className="rbox amber fade"><div className="rbox-label" style={{color:"#F59E0B"}}>The proof challenge for {vert.label.toLowerCase()}</div><div className="rbox-text">{vert.proofChallenge}<br/><br/><strong>Evidence that drives renewal:</strong> {vert.renewalEvidence}.</div></div>}
 
-        <div className="gap-box fade">
-          <div style={{ fontSize: 11, color: "var(--fg3)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 4 }}>Your biggest gap</div>
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>{BREAKS[weakest].name}</div>
-          <div style={{ fontSize: 13, color: "var(--fg2)", lineHeight: 1.7 }}>{GAPREC_SHORT[weakest]}</div>
-        </div>
+    {/* Biggest gap */}
+    <div className="rbox red fade"><div className="rbox-label" style={{color:"#EF4444"}}>Your biggest gap: {BREAKS[weakest].name}</div><div className="rbox-text">{GAPREC[weakest]}</div></div>
 
-        <div className="bench-box fade">
-          <div style={{ fontSize: 11, color: "var(--fg3)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 4 }}>Benchmark {"\u00b7"} {size}</div>
-          <div style={{ fontSize: 13, color: "var(--fg2)", lineHeight: 1.6 }}>
-            Companies in your range typically score {bench.typical}. Best-in-class: {bench.best}. Companies with strong outcome practices drive NRR 7{"\u2013"}16 points higher than peers.
-          </div>
-        </div>
+    {/* LLM insights */}
+    {loading&&<div className="llm-box"><div style={{marginBottom:8}}><span className="dot"/><span className="dot"/><span className="dot"/></div>Generating your {vert?vert.label:""}  diagnosis...</div>}
 
-        <button className="btn-dl fade" onClick={handleDownload}>{"\u2193"} Download full report (PDF)</button>
+    {insights&&<div className="fade">
+      <div className="rbox purple"><div className="rbox-label" style={{color:"var(--accent2)"}}>Your diagnosis</div><div className="rbox-text">{insights.verticalDiagnosis}</div></div>
+      {insights.nrrGapAnalysis&&<div className="rbox"><div className="rbox-label" style={{color:"var(--fg3)"}}>NRR impact</div><div className="rbox-text">{insights.nrrGapAnalysis}</div></div>}
+      {insights.biggestBreakImpact&&<div className="rbox red"><div className="rbox-label" style={{color:"#EF4444"}}>P&L impact of {BREAKS[weakest].name}</div><div className="rbox-text">{insights.biggestBreakImpact}</div></div>}
+      {insights.threeActions&&<div style={{marginTop:14}}><div style={{fontSize:13,fontWeight:500,color:"var(--fg)",marginBottom:10}}>Your next 90 days</div>{insights.threeActions.map(function(a,i){return(<div key={i} className="rbox green" style={{marginBottom:6}}><div className="rbox-label" style={{color:"#22C55E"}}>{i===0?"This month":i===1?"This quarter":"6-month horizon"}</div><div className="rbox-text"><strong>{a.title}.</strong> {a.detail}</div></div>);})}</div>}
+      {insights.roleSpecificInsight&&<div className="rbox purple" style={{marginTop:8}}><div className="rbox-label" style={{color:"var(--accent2)"}}>For you as {role}</div><div className="rbox-text">{insights.roleSpecificInsight}</div></div>}
+    </div>}
 
-        <div className="cta-box fade">
-          <div style={{ fontSize: 13, color: "var(--fg2)", lineHeight: 1.6, marginBottom: 8 }}>
-            The report includes detailed analysis, specific recommendations, and next steps.<br /><br />
-            Want to know exactly where the chain breaks in your company?
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--accent2)" }}>darius.fekete@gmail.com</div>
-        </div>
-
-        <button className="btn-ghost" style={{ marginTop: 8 }} onClick={resetAll}>Take it again</button>
-
-        <div style={{ textAlign: "center", marginTop: 32, fontSize: 11, color: "var(--fg3)" }}>
-          Built by Darius Fekete {"\u00b7"} <a href="mailto:darius.fekete@gmail.com" style={{ color: "var(--accent2)", textDecoration: "none" }}>Get in touch</a>
-        </div>
-      </div>
-    </>
-  );
+    <button className="btn-dl fade" style={{marginTop:16}} onClick={handleDL} disabled={loading}>{loading?"Report generating...":"\u2193 Download full report (PDF)"}</button>
+    <div className="cta-box fade"><div style={{fontSize:13,color:"var(--fg2)",lineHeight:1.6,marginBottom:8}}>Want to know exactly where the chain breaks in your company?</div><div style={{fontSize:14,fontWeight:500,color:"var(--accent2)"}}>darius.fekete@gmail.com</div></div>
+    <button className="btn-ghost" style={{marginTop:8}} onClick={reset}>Take it again</button>
+    <div style={{textAlign:"center",marginTop:28,fontSize:10,color:"var(--fg3)"}}>Built by Darius Fekete {"\u00b7"} <a href="mailto:darius.fekete@gmail.com" style={{color:"var(--accent2)",textDecoration:"none"}}>Get in touch</a></div>
+  </div></>);
 }
