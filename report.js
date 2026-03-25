@@ -44,11 +44,11 @@ export function generateReport(ctx) {
   y += 22;
 
   // NRR gap
-  if (ctx.nrr && ctx.nrrBench) {
+  if (ctx.nrr) {
     doc.setFontSize(9); doc.setTextColor(...fg);
-    doc.text("NRR gap analysis", margin, y); y += 6;
+    doc.text("NRR benchmark", margin, y); y += 6;
     doc.setFontSize(8); doc.setTextColor(...gray);
-    var nrrText = "Your NRR: " + ctx.nrr + ". Best-in-class for " + ctx.vertical.toLowerCase() + ": " + ctx.nrrBench.best + ". Typical: " + ctx.nrrBench.typical + ".";
+    var nrrText = "Your NRR: " + ctx.nrr + ". Top-quartile B2B SaaS NRR: 113%+ (Benchmarkit 2025). Companies above 120% NRR achieve valuation multiples of 21x vs 9x (SaaS Capital). Companies with structured outcome practices drive NRR 7-16 points higher than peers (McKinsey 2025).";
     var nrrLines = wrap(nrrText); doc.text(nrrLines, margin, y); y += nrrLines.length * 4 + 2;
     if (ctx.insights && ctx.insights.nrrGapAnalysis) {
       doc.setTextColor(200, 198, 192);
