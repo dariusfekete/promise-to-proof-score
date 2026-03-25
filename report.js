@@ -50,7 +50,7 @@ export function generateReport(ctx) {
     doc.setFontSize(8); doc.setTextColor(...gray);
     var nrrText = "Your NRR: " + ctx.nrr + ". Top-quartile B2B SaaS NRR: 113%+ (Benchmarkit 2025). Companies above 120% NRR achieve valuation multiples of 21x vs 9x (SaaS Capital). Companies with structured outcome practices drive NRR 7-16 points higher than peers (McKinsey 2025).";
     var nrrLines = wrap(nrrText); doc.text(nrrLines, margin, y); y += nrrLines.length * 4 + 2;
-    if (ctx.insights && ctx.insights.nrrGapAnalysis) {
+    if (ctx.insights && !ctx.insights._error && ctx.insights.nrrGapAnalysis) {
       doc.setTextColor(200, 198, 192);
       var insLines = wrap(ctx.insights.nrrGapAnalysis); doc.text(insLines, margin, y); y += insLines.length * 4 + 4;
     }
@@ -82,7 +82,7 @@ export function generateReport(ctx) {
   y += 4; divider();
 
   // LLM diagnosis
-  if (ctx.insights) {
+  if (ctx.insights && !ctx.insights._error) {
     if (ctx.insights.verticalDiagnosis) {
       sectionTitle("Diagnosis: " + ctx.vertical);
       bodyText(ctx.insights.verticalDiagnosis, [200, 198, 192]);
@@ -102,7 +102,7 @@ export function generateReport(ctx) {
   doc.setDrawColor(...accent); doc.setLineWidth(0.5);
   doc.line(margin, y, w - margin, y); y += 10;
 
-  if (ctx.insights && ctx.insights.threeActions) {
+  if (ctx.insights && !ctx.insights._error && ctx.insights.threeActions) {
     var timeframes = ["This month", "This quarter", "6-month horizon"];
     ctx.insights.threeActions.forEach(function(a, i) {
       checkPage(25);
@@ -127,7 +127,7 @@ export function generateReport(ctx) {
   }
 
   // Role insight
-  if (ctx.insights && ctx.insights.roleSpecificInsight) {
+  if (ctx.insights && !ctx.insights._error && ctx.insights.roleSpecificInsight) {
     sectionTitle("For you as " + ctx.role);
     bodyText(ctx.insights.roleSpecificInsight, [200, 198, 192]);
     divider();

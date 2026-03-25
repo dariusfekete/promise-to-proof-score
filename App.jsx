@@ -46,9 +46,11 @@ async function getInsights(ctx){
   var prompt="You are a B2B SaaS commercial strategy expert with 18 years of experience. You understand how different SaaS verticals create, deliver, and prove value differently.\n\nA "+ctx.role+" at a "+ctx.size+" "+ctx.vertLabel+" company completed a promise-to-proof diagnostic.\n\nScores (each /20): Promise\u2192Deliver: "+ctx.bs[0]+", Deliver\u2192Operate: "+ctx.bs[1]+", Operate\u2192Measure: "+ctx.bs[2]+", Measure\u2192Prove: "+ctx.bs[3]+", Prove\u2192Decide: "+ctx.bs[4]+". Total: "+ctx.total+"/100.\n\nCurrent NRR: "+ctx.nrr+".\nAggregate benchmark: companies with strong outcome evidence practices achieve NRR 7-16 points higher than peers (McKinsey). Top-quartile B2B SaaS NRR is 113% (Benchmarkit 2025). Companies above 120% NRR achieve median valuation multiples of 21x vs 9x below that threshold (SaaS Capital).\n\nVertical context for "+ctx.vertLabel+":\n- Value promise: "+ctx.vd.valuePromise+"\n- Typical outcomes: "+ctx.vd.typicalOutcomes+"\n- Proof challenge: "+ctx.vd.proofChallenge+"\n- Renewal evidence needed: "+ctx.vd.renewalEvidence+"\n\nRespond ONLY with valid JSON. No backticks, no markdown, no preamble. Structure:\n{\"nrrGapAnalysis\":\"3-4 sentences. Based on their NRR range and score, estimate how much NRR improvement is recoverable by closing the proof gap. Be specific about the financial mechanism: how does the inability to prove outcomes in "+ctx.vertLabel+" specifically lead to NRR leakage? Reference the aggregate benchmarks above (cite McKinsey/Benchmarkit/SaaS Capital by name).\",\"verticalDiagnosis\":\"4-5 sentences. What do these scores mean for a "+ctx.vertLabel+" company specifically? Name the exact proof challenge: where does the outcome evidence live (e.g. customer ERP, their finance systems, HR platforms), why can't your platform capture it, and what happens at renewal because of that gap. Be concrete and specific to "+ctx.vertLabel+" - not generic SaaS advice.\",\"biggestBreakImpact\":\"3-4 sentences. Their weakest link is "+BREAKS[ctx.weak].name+" (scored "+ctx.bs[ctx.weak]+"/20). Explain the specific P&L consequence for a "+ctx.vertLabel+" company at "+ctx.size+". What does this break cost in concrete terms? Name the revenue mechanism (e.g. discount pressure, stalled expansion, longer sales cycles for new logos).\",\"threeActions\":[{\"title\":\"short action title\",\"detail\":\"2-3 sentences. Specific to "+ctx.vertLabel+" and the "+BREAKS[ctx.weak].name+" break. Name the exact deliverable and who owns it. This month.\"},{\"title\":\"short action title\",\"detail\":\"2-3 sentences. What infrastructure to build this quarter specifically for "+ctx.vertLabel+". Name the systems, the data connections, the process changes.\"},{\"title\":\"short action title\",\"detail\":\"2-3 sentences. Strategic 6-month view. What changes in the business if they execute the first two actions? Be specific about NRR, expansion, and competitive positioning.\"}],\"roleSpecificInsight\":\"2-3 sentences for a "+ctx.role+". How should they frame this internally? Who needs to be in the room? What's the ask to their CEO/board/PE sponsor?\"}";
   try{
     var r=await fetch("/api/collect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"insights",prompt:prompt})});
+    if(!r.ok){return{_error:"Server returned "+r.status};}
     var d=await r.json();
-    return d.insights||null;
-  }catch(e){console.error("LLM:",e);return null;}
+    if(d.error){return{_error:d.error};}
+    return d.insights||{_error:"No insights in response"};
+  }catch(e){return{_error:String(e)};}
 }
 
 export default function App(){
@@ -83,7 +85,7 @@ export default function App(){
 
   var handleGate=async function(){
     setSending(true);
-    try{await fetch("/api/collect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,email:email,company:company,vertical:vert?vert.label:"",size:size,role:role,nrr:nrr,score:total,breakScores:bscores,weakestBreak:weakest,verdict:verdict.level,timestamp:new Date().toISOString()})});}catch(e){}
+    try{await fetch("/api/collect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"lead",name:name,email:email,company:company,vertical:vert?vert.label:"",size:size,role:role,nrr:nrr,score:total,breakScores:bscores,weakestBreak:weakest,verdict:verdict.level,timestamp:new Date().toISOString()})});}catch(e){}
     setSending(false);setPhase("result");
     setLoading(true);
     var result=await getInsights({role:role,size:size,vertLabel:vert?vert.label:"B2B SaaS",vd:vert||VERTICALS[7],total:total,bs:bscores,nrr:nrr,bench:nrrBench,weak:weakest});
@@ -131,7 +133,9 @@ export default function App(){
     {/* LLM insights */}
     {loading&&<div className="llm-box"><div style={{marginBottom:8}}><span className="dot"/><span className="dot"/><span className="dot"/></div>Generating your {vert?vert.label:""}  diagnosis...</div>}
 
-    {insights&&<div className="fade">
+    {insights&&insights._error&&<div className="rbox red fade"><div className="rbox-label" style={{color:"#EF4444"}}>Diagnosis unavailable</div><div className="rbox-text">Could not generate personalized insights. Error: {insights._error}<br/><br/>The report will include your score, vertical context, and general recommendations. For a personalized diagnosis, contact darius.fekete@gmail.com.</div></div>}
+
+    {insights&&!insights._error&&<div className="fade">
       <div className="rbox purple"><div className="rbox-label" style={{color:"var(--accent2)"}}>Your diagnosis</div><div className="rbox-text">{insights.verticalDiagnosis}</div></div>
       {insights.nrrGapAnalysis&&<div className="rbox"><div className="rbox-label" style={{color:"var(--fg3)"}}>NRR impact</div><div className="rbox-text">{insights.nrrGapAnalysis}</div></div>}
       {insights.biggestBreakImpact&&<div className="rbox red"><div className="rbox-label" style={{color:"#EF4444"}}>P&L impact of {BREAKS[weakest].name}</div><div className="rbox-text">{insights.biggestBreakImpact}</div></div>}
