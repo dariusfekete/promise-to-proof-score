@@ -17,7 +17,7 @@ export function generateReport(ctx) {
 
   function bg() { doc.setFillColor(10, 10, 12); doc.rect(0, 0, w, 297, "F"); }
   function divider() { doc.setDrawColor(40, 40, 46); doc.setLineWidth(0.3); doc.line(margin, y, w - margin, y); y += 10; }
-  function wrap(text, maxW) { return doc.splitTextToSize(text, maxW || cw); }
+  function wrap(text, maxW) { return doc.splitTextToSize(String(text || ""), maxW || cw); }
   function checkPage(need) { if (y + need > 275) { doc.addPage(); y = 20; bg(); } }
   function sectionTitle(text) { checkPage(20); doc.setFontSize(10); doc.setTextColor(...fg); doc.text(text, margin, y); y += 7; }
   function bodyText(text, col) { doc.setFontSize(8); doc.setTextColor(...(col || gray)); var lines = wrap(text); doc.text(lines, margin, y); y += lines.length * 4 + 4; }
@@ -27,7 +27,7 @@ export function generateReport(ctx) {
   doc.setFontSize(10); doc.setTextColor(...accent);
   doc.text("PROMISE-TO-PROOF SCORE", margin, y); y += 6;
   doc.setFontSize(8); doc.setTextColor(...gray);
-  doc.text("Personalized Diagnostic Report", margin, y);
+  doc.text("Diagnostic Report", margin, y);
   doc.text("Prepared for " + ctx.name, w - margin, y, { align: "right" }); y += 4;
   doc.setDrawColor(...accent); doc.setLineWidth(0.5);
   doc.line(margin, y, w - margin, y); y += 12;
@@ -43,28 +43,25 @@ export function generateReport(ctx) {
   doc.text(ctx.vertical + "  |  " + ctx.size + "  |  " + ctx.role, margin + 52, y + 11);
   y += 22;
 
-  // NRR gap
+  // NRR benchmark
   if (ctx.nrr) {
-    doc.setFontSize(9); doc.setTextColor(...fg);
-    doc.text("NRR benchmark", margin, y); y += 6;
-    doc.setFontSize(8); doc.setTextColor(...gray);
-    var nrrText = "Your NRR: " + ctx.nrr + ". Top-quartile B2B SaaS NRR: 113%+ (Benchmarkit 2025). Companies above 120% NRR achieve valuation multiples of 21x vs 9x (SaaS Capital). Companies with structured outcome practices drive NRR 7-16 points higher than peers (McKinsey 2025).";
-    var nrrLines = wrap(nrrText); doc.text(nrrLines, margin, y); y += nrrLines.length * 4 + 2;
+    sectionTitle("NRR benchmark");
+    bodyText("Your NRR: " + ctx.nrr + ". Top-quartile B2B SaaS NRR: 113%+ (Benchmarkit 2025). Companies above 120% NRR achieve valuation multiples of 21x vs 9x (SaaS Capital). Companies with structured outcome practices drive NRR 7-16 points higher than peers (McKinsey 2025).");
     if (ctx.insights && !ctx.insights._error && ctx.insights.nrrGapAnalysis) {
-      doc.setTextColor(200, 198, 192);
-      var insLines = wrap(ctx.insights.nrrGapAnalysis); doc.text(insLines, margin, y); y += insLines.length * 4 + 4;
+      bodyText(ctx.insights.nrrGapAnalysis, [200, 198, 192]);
     }
-    y += 4; divider();
+    divider();
   }
 
-  // Vertical-specific context
-  if (ctx.verticalData) {
-    sectionTitle("Value context: " + ctx.vertical);
-    bodyText("Value promise: " + ctx.verticalData.valuePromise + ".");
-    bodyText("Typical outcomes: " + ctx.verticalData.typicalOutcomes + ".");
-    bodyText("Proof challenge: " + ctx.verticalData.proofChallenge);
-    bodyText("Renewal evidence needed: " + ctx.verticalData.renewalEvidence + ".");
-    y += 2; divider();
+  // Why proof is hard
+  if (ctx.verticalData && ctx.verticalData.whyProofIsHard) {
+    sectionTitle("Why proof is hard for " + ctx.vertical.toLowerCase());
+    bodyText(ctx.verticalData.whyProofIsHard);
+    if (ctx.verticalData.proofShape) {
+      bodyText("The shape of the problem: " + ctx.verticalData.proofShape, [200, 198, 192]);
+    }
+    bodyText("Evidence that drives renewal: " + ctx.verticalData.renewalEvidence + ".");
+    divider();
   }
 
   // Break scores
@@ -82,73 +79,71 @@ export function generateReport(ctx) {
   y += 4; divider();
 
   // LLM diagnosis
-  if (ctx.insights && !ctx.insights._error) {
-    if (ctx.insights.verticalDiagnosis) {
-      sectionTitle("Diagnosis: " + ctx.vertical);
-      bodyText(ctx.insights.verticalDiagnosis, [200, 198, 192]);
-      divider();
-    }
-    if (ctx.insights.biggestBreakImpact) {
-      sectionTitle("Biggest break: " + BREAKS[ctx.weakestBreak]);
-      bodyText(ctx.insights.biggestBreakImpact, [200, 198, 192]);
-      divider();
-    }
+  var ins = ctx.insights && !ctx.insights._error ? ctx.insights : null;
+
+  if (ins && ins.verticalDiagnosis) {
+    sectionTitle("Diagnosis: " + ctx.vertical);
+    bodyText(ins.verticalDiagnosis, [200, 198, 192]);
+    divider();
   }
 
-  // Page 2: Actions
+  if (ins && ins.biggestBreakImpact) {
+    sectionTitle("Biggest break: " + BREAKS[ctx.weakestBreak]);
+    bodyText(ins.biggestBreakImpact, [200, 198, 192]);
+    divider();
+  }
+
+  // Areas to investigate
   doc.addPage(); y = 20; bg();
   doc.setFontSize(10); doc.setTextColor(...accent);
-  doc.text("YOUR ACTION PLAN", margin, y); y += 4;
+  doc.text("AREAS TO INVESTIGATE", margin, y); y += 4;
   doc.setDrawColor(...accent); doc.setLineWidth(0.5);
   doc.line(margin, y, w - margin, y); y += 10;
 
-  if (ctx.insights && !ctx.insights._error && ctx.insights.threeActions) {
-    var timeframes = ["This month", "This quarter", "6-month horizon"];
-    ctx.insights.threeActions.forEach(function(a, i) {
+  if (ins && ins.areasToInvestigate) {
+    ins.areasToInvestigate.forEach(function(a) {
       checkPage(25);
-      doc.setFontSize(9); doc.setTextColor(...green); doc.text(timeframes[i], margin, y); y += 5;
-      doc.setFontSize(9); doc.setTextColor(...fg); doc.text(a.title, margin, y); y += 5;
+      doc.setFontSize(9); doc.setTextColor(...fg); doc.text(a.area, margin, y); y += 5;
       doc.setFontSize(8); doc.setTextColor(...gray);
-      var lines = wrap(a.detail); doc.text(lines, margin, y); y += lines.length * 4 + 8;
+      var lines = wrap(a.observation); doc.text(lines, margin, y); y += lines.length * 4 + 8;
     });
     divider();
   } else {
-    // Fallback generic actions
-    sectionTitle("Quick wins (this quarter)");
-    bodyText("1. Standardize the business case handoff: create a one-page template that captures the 3 specific outcomes Sales promised. This document travels from Sales to Implementation to CS.");
-    bodyText("2. Structure 3 renewal conversations around outcomes: pick your top 3 renewals in the next 90 days. Identify what was promised and what evidence exists.");
-    bodyText("3. Run the 'CFO test' on 10 accounts: for each, ask 'could we prove to this customer's CFO that our software delivered what was promised?'");
-    divider();
-    sectionTitle("Infrastructure (this half)");
-    bodyText("1. Define your outcome taxonomy: 5-10 business outcomes by vertical and use case. The shared language across Sales, CS, and Product.");
-    bodyText("2. Build the measurement connection: for each outcome, identify where evidence lives and what it takes to make it accessible.");
-    bodyText("3. Pilot outcome-based EBRs with 5 accounts. Document what works and what data you're missing.");
+    // Fallback
+    sectionTitle("Where to look");
+    bodyText("1. The handoff between Sales and Implementation: does the business case that closes the deal reach the team that delivers? Or does implementation start from scratch?");
+    bodyText("2. The measurement gap: is your CS team tracking product activity (logins, usage, health scores) or actual business outcomes tied to what was promised?");
+    bodyText("3. The renewal conversation: what evidence does your team bring? Adoption data, or proof that the customer got what they paid for?");
     divider();
   }
 
   // Role insight
-  if (ctx.insights && !ctx.insights._error && ctx.insights.roleSpecificInsight) {
+  if (ins && ins.roleSpecificInsight) {
     sectionTitle("For you as " + ctx.role);
-    bodyText(ctx.insights.roleSpecificInsight, [200, 198, 192]);
+    bodyText(ins.roleSpecificInsight, [200, 198, 192]);
     divider();
   }
 
-  // EU Data Act context
+  // What makes proof hard (from vertical data, if not already covered by LLM)
+  if (ctx.verticalData && ctx.verticalData.whatMakesItWorse && !ins) {
+    sectionTitle("Which breaks matter most for " + ctx.vertical.toLowerCase());
+    bodyText(ctx.verticalData.whatMakesItWorse);
+    divider();
+  }
+
+  // EU Data Act
   checkPage(30);
   sectionTitle("Regulatory context: EU Data Act");
-  bodyText("Effective September 2025, the EU Data Act allows customers to terminate any SaaS contract with 60 days' notice, regardless of original contract length. This means retention must be earned continuously through provable value. For companies with significant EU revenue, the ability to demonstrate outcomes is no longer a CS improvement - it's a revenue defense imperative.");
+  bodyText("Effective September 2025, the EU Data Act allows customers to terminate any SaaS contract with 60 days' notice, regardless of original contract length. This means retention must be earned continuously through provable value. For companies with significant EU revenue, the ability to demonstrate outcomes is no longer a CS improvement \u2014 it's a revenue defense imperative.");
   divider();
 
   // CTA
   checkPage(30);
   doc.setFontSize(10); doc.setTextColor(...fg);
-  doc.text("Want to know exactly where the chain breaks?", margin, y); y += 6;
-  doc.setFontSize(9); doc.setTextColor(...accent);
-  doc.text("A 2-4 week Commercial Value Scan can quantify the gap and identify", margin, y); y += 5;
-  doc.text("quick wins your team can act on immediately.", margin, y); y += 8;
+  doc.text("Want to understand where the architecture breaks?", margin, y); y += 8;
   doc.setTextColor(...gray); doc.setFontSize(8);
   doc.text("Darius Fekete  |  darius.fekete@gmail.com  |  Amsterdam, Netherlands", margin, y); y += 4;
-  doc.text("18 years across Simon-Kucher, Capco, and Vendavo. 40+ commercial transformations. HEC Paris EMBA.", margin, y);
+  doc.text("18 years across Simon-Kucher, Capco, and Vendavo. 40+ commercial engagements. HEC Paris EMBA.", margin, y);
 
   // Footer
   var pageCount = doc.internal.getNumberOfPages();
