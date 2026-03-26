@@ -1,18 +1,16 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // GET = test endpoint. Visit /api/collect in browser to verify deployment.
   if (req.method === "GET") {
-    var hasKey = !!process.env.ANTHROPIC_API_KEY;
     return res.status(200).json({
       status: "Function is running",
       node: process.version,
-      anthropicKeySet: hasKey,
-      sheetWebhookSet: !!process.env.GOOGLE_SHEET_WEBHOOK,
+      anthropicKeySet: !!process.env.ANTHROPIC_API_KEY,
+      sheetWebhookSet: !!process.env.GOOGLE_SHEET_WEBHOOK
     });
   }
 
@@ -21,7 +19,6 @@ export default async function handler(req, res) {
   var body = req.body || {};
   var action = body.action || "unknown";
 
-  // LEAD
   if (action === "lead") {
     console.log("NEW_LEAD", JSON.stringify(body));
     var sheetUrl = process.env.GOOGLE_SHEET_WEBHOOK;
@@ -30,14 +27,13 @@ export default async function handler(req, res) {
         await fetch(sheetUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify(body)
         });
       } catch (e) { console.error("Sheet:", e.message); }
     }
     return res.status(200).json({ ok: true });
   }
 
-  // INSIGHTS
   if (action === "insights") {
     var key = process.env.ANTHROPIC_API_KEY;
     if (!key) {
@@ -56,13 +52,13 @@ export default async function handler(req, res) {
         headers: {
           "Content-Type": "application/json",
           "x-api-key": key,
-          "anthropic-version": "2023-06-01",
+          "anthropic-version": "2023-06-01"
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 1500,
-          messages: [{ role: "user", content: prompt }],
-        }),
+          messages: [{ role: "user", content: prompt }]
+        })
       });
     } catch (e) {
       return res.status(200).json({ insights: null, error: "Fetch failed: " + e.message });
@@ -94,4 +90,4 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ error: "Unknown action: " + action });
-}
+};
