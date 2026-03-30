@@ -195,8 +195,22 @@ export function generateReport(ctx) {
     writeLines(ins.nrrGapAnalysis, null, FS.body, FG2);
   }
 
+  // Pattern archetype
+  if (ctx.pattern) {
+    sectionHead("Your pattern: " + clean(ctx.pattern.name), ACC);
+    writeLines(ctx.pattern.desc);
+    divider();
+  }
+
   // ── PAGE 2 ─────────────────────────────────────────────
   newPage();
+
+  // Customer perspective
+  if (ctx.customerView) {
+    sectionHead("What your customer experiences", FG3);
+    writeLines(ctx.customerView);
+    divider();
+  }
 
   // Why proof is hard
   if (ctx.verticalData && ctx.verticalData.whyProofIsHard) {
@@ -228,6 +242,15 @@ export function generateReport(ctx) {
   if (ins && ins.biggestBreakImpact) {
     sectionHead("Biggest break: " + BREAK_LABELS[ctx.weakestBreak], RED);
     writeLines(ins.biggestBreakImpact);
+    divider();
+  }
+
+  // Break cascades
+  if (ctx.cascades && ctx.cascades.length > 0) {
+    sectionHead("How your breaks compound", AMB);
+    ctx.cascades.forEach(function(c) {
+      writeLines(c);
+    });
     divider();
   }
 
